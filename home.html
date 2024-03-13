@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Display navigation directions</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet">
+  
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
+    
+    #petrolSearch{
+      position: absolute;
+      top: 0.8rem;
+      right: 3rem;
+      height: 2.5rem;
+      border-radius: 10px;
+    }
+
+    #petrol-pumps {
+      position: absolute;
+      /* top: 50%; */
+      bottom: 0%;
+      right: 5rem;
+      width: 15%;
+      overflow-y: auto; /* Hide the vertical scroll bar */
+      padding: 10px;
+      border-radius: 3rem;
+    }
+    #petrol-pumps::-webkit-scrollbar {
+  display: none; /* Hide the scrollbar in WebKit browsers */
+}
+
+    .petrol-pump {
+      margin-bottom: 10px;
+      background-color: #f0f0f0;
+      padding: 10px;
+      border-radius: 2rem;
+    }
+
+    .mapboxgl-marker {
+      pointer-events: none; /* Disable pointer events for markers */
+    }
+
+    #addCar{
+        position: absolute;
+        border-radius: 10px;
+        bottom: 2rem;
+        right: 1rem;
+        width: 4rem;
+        height: 4rem;
+        color: black;
+    }
+
+    #showCars{
+        position: absolute;
+        border-radius: 10px;
+        bottom: 8rem;
+        right: 1rem;
+        width: 4rem;
+        height: 4rem;
+        color: black;
+
+    }
+  </style>
+</head>
+
+<body>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.2.0/mapbox-gl-directions.js"></script>
+  <link rel="stylesheet"
+    href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-directions/v4.2.0/mapbox-gl-directions.css"
+    type="text/css">
+  <div id="map"></div>
+  <div id="petrol-pumps"></div>
+  <button id="petrolSearch" onclick="searchNearbyPetrolPumps()">Search Petrol Pumps</button>
+  <button id="addCar" onclick="redirectToCarForm()">Add Car</button>
+  <button id="showCars" onclick="showCarInformation()">Show Cars</button> <!-- New button -->
+
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoiaGFubmFod3JpZ2h0MTIzIiwiYSI6ImNsc2FvaXpueTA1dDAyanFtemplcHdyd24ifQ.xDVluCTEF9lX4dYC8DHglQ';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [73.856255, 18.516726],
+      zoom: 13
+    });
+
+    const directions = new MapboxDirections({
+      accessToken: mapboxgl.accessToken
+    });
+    map.addControl(new mapboxgl.NavigationControl());
+    map.addControl(directions, 'top-left');
+
+    // Function to add a waypoint at a clicked location
+    function addWaypoint(e) {
+      const waypointCoordinates = [e.lngLat.lng, e.lngLat.lat];
+      // Check if a petrol pump is clicked
+      const petrolPump = findPetrolPump(waypointCoordinates);
+      if (petrolPump) {
+        // Set the starting point of the route to the petrol pump coordinates
+        directions.setOrigin(petrolPump.coordinates);
+      } else {
+        // Add the waypoint as usual
+        directions.addWaypoint(waypointCoordinates);
+      }
+    }
+
+    // Listen for clicks on the map to add waypoints
+    map.on('click', addWaypoint);
+
+    // Function to search for nearby petrol pumps
+    function searchNearbyPetrolPumps() {
+      navigator.geolocation.getCurrentPosition(successLocation, errorLocation, {
+        enableHighAccuracy: true
+      });
+    }
+
+    function successLocation(position) {
+      const userCoordinates = [position.coords.longitude, position.coords.latitude];
+
+      const radius = 500; // 500m radius
+      const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/petrol%20station.json?country=in&routing=true&limit=10&types=place%2Caddress%2Cregion%2Cpostcode%2Ccountry%2Cneighborhood%2Cpoi&proximity=${userCoordinates[0]},${userCoordinates[1]}&access_token=${mapboxgl.accessToken}&limit=10`;
+
+      fetch(endpoint)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Extract petrol pump coordinates from the response
+          const petrolPumps = data.features.map(feature => {
+            return {
+              coordinates: feature.geometry.coordinates,
+              name: feature.place_name,
+              address: feature.properties.address || 'Address not available'
+            };
+          });
+
+          // Add petrol pump markers to the map
+          addPetrolPumpMarkers(petrolPumps);
+
+          // Display petrol pump information on the screen
+          displayPetrolPumpInfo(petrolPumps);
+        })
+        .catch(error => {
+          console.error('Error searching nearby petrol pumps:', error);
+          alert('Error searching nearby petrol pumps.');
+        });
+    }
+
+    function errorLocation(error) {
+      console.error('Error getting geolocation:', error);
+      alert('Geolocation is not available.');
+    }
+
+    function addPetrolPumpMarkers(petrolPumps) {
+      console.log("petrolPumps function started")
+      petrolPumps.forEach(petrolPump => {
+        new mapboxgl.Marker()
+          .setLngLat(petrolPump.coordinates)
+          .addTo(map);
+      });
+    }
+
+    function displayPetrolPumpInfo(petrolPumps) {
+      const petrolPumpsContainer = document.getElementById('petrol-pumps');
+      petrolPumpsContainer.innerHTML = ''; // Clear previous content
+
+      petrolPumps.forEach(petrolPump => {
+        const petrolPumpDiv = document.createElement('div');
+        petrolPumpDiv.classList.add('petrol-pump');
+        petrolPumpDiv.innerHTML = `
+            <h3>${petrolPump.name}</h3>
+            <p>${petrolPump.address}</p>
+        `;
+        petrolPumpsContainer.appendChild(petrolPumpDiv);
+      });
+    }
+
+    // Function to find the nearest petrol pump to the given coordinates
+    let petrolPumps = []; // Declare petrolPumps variable in the global scope
+
+// Function to add a waypoint at a clicked location
+function addWaypoint(e) {
+  const waypointCoordinates = [e.lngLat.lng, e.lngLat.lat];
+  // Check if a petrol pump is clicked
+  const petrolPump = findPetrolPump(waypointCoordinates);
+  if (petrolPump) {
+    // Set the starting point of the route to the petrol pump coordinates
+    directions.setOrigin(petrolPump.coordinates);
+  } else {
+    // Add the waypoint as usual
+    directions.addWaypoint(waypointCoordinates); // Error occurs here
+  }
+}
+
+// Function to find the nearest petrol pump to the given coordinates
+function findPetrolPump(coordinates) {
+  // Loop through the list of petrol pumps and find the nearest one
+  for (const petrolPump of petrolPumps) {
+    const distance = calculateDistance(coordinates, petrolPump.coordinates);
+    if (distance < 100) { // Assuming 100 meters radius as the threshold
+      return petrolPump;
+    }
+  }
+  return null;
+}
+
+    // Function to calculate the distance between two coordinates (in meters)
+    function calculateDistance(coord1, coord2) {
+      const lat1 = coord1[1];
+      const lon1 = coord1[0];
+      const lat2 = coord2[1];
+      const lon2 = coord2[0];
+      const R = 6371e3; // Radius of the Earth in meters
+      const φ1 = lat1 * Math.PI / 180; // φ, λ in radians
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      const distance = R * c; // Distance in meters
+      return distance;
+    }
+
+    function redirectToCarForm() {
+      window.location.href = '/carForm'; // Replace '/car-form' with the actual route
+    }
+
+
+    function showCarInformation() {
+      // Redirect to the route to display car information
+      window.location.href = '/cars'; // Replace '/cars' with the actual route
+    }
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,24 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Selection</title>
+</head>
+<body>
+    <h2>Welcome</h2>
+    <p>Are you an existing user or a new user?</p>
+    <form action="/selectUser" method="POST">
+        <label>
+            <input type="radio" name="userType" value="existing" required>
+            Existing User
+        </label><br>
+        <label>
+            <input type="radio" name="userType" value="new" required>
+            New User
+        </label><br><br>
+        <button type="submit">Continue</button>
+    </form>
+</body>
+</html>
